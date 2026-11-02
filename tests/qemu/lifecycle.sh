@@ -61,11 +61,13 @@ boot_timing() { # boot_timing <phase>
   # systemd-analyze cannot attribute initramfs time; keep the early journal.
   vm 'sudo journalctl -b -o short-monotonic --no-pager | head -600' > "$OUT/boot-$1-journal.txt" 2>&1 || true
   # From the timestamped console: the kernel's "reboot: Restarting system"
-  # ends shutdown; the next boot's first kernel line ends firmware and boot
+  # ends shutdown. Installed systems boot with "quiet", so the next kernel
+  # line is usually a late one; its own timestamp, subtracted from when it
+  # arrived, gives when the kernel started and so ends firmware and boot
   # loader.
   local split
   split=$(python3 - "$OUT/console.log" "$REBOOT_T" <<'PY'
-import sys
+import re, sys
 t0 = float(sys.argv[2]); lines = []
 for raw in open(sys.argv[1], 'rb'):
     stamp, _, text = raw.decode(errors='replace').partition(' ')
@@ -73,7 +75,9 @@ for raw in open(sys.argv[1], 'rb'):
     except ValueError: continue
     if t >= t0: lines.append((t, text))
 restart = next((t for t, x in lines if 'reboot: Restarting system' in x), None)
-kernel = next((t for t, x in lines if restart and t > restart and 'Linux version' in x), None)
+firmware = next((t for t, x in lines if restart and t > restart and 'BdsDxe' in x), None)
+stamps = ((t, re.search(r'\[\s*(\d+\.\d+)\]', x)) for t, x in lines if firmware and t > firmware)
+kernel = next((t - float(m.group(1)) for t, m in stamps if m), None)
 parts = []
 if restart: parts.append(f"shutdown {restart - t0:.1f}s")
 if restart and kernel: parts.append(f"firmware+loader {kernel - restart:.1f}s")

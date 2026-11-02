@@ -53,7 +53,7 @@ Reboot with Hakopod running:
 | `cloud` | 4.2 to 4.4 s | 19 s | 28 to 34 s |
 | `metal` | 4.2 to 4.7 s | 22 to 25 s | 39 to 45 s |
 
-The same holds after an A/B upgrade and after rollback. A cloud boot is 2.4 s of kernel, 4.3 s of initramfs and 5.5 s of userspace (12.1 s), with about 3.5 s of firmware and GRUB before it.
+The same holds after an A/B upgrade and after rollback. A cloud boot is 2.4 s of kernel, 4.3 s of initramfs and 5.5 s of userspace (12.1 s), with 2.9 s of firmware and GRUB before it (3.8 s on `metal`).
 
 Three changes brought a reboot with Hakopod running down from 67 to 71 s to SSH and 83 to 90 s to a healthy API:
 
