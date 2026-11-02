@@ -1,6 +1,6 @@
 # hakopodOS
 
-An immutable host OS for [Hakopod](https://github.com/hakopod/hakopod), built with [Kairos](https://kairos.io) on Ubuntu 24.04.
+An immutable host OS for [Hakopod](https://github.com/hakopod/hakopod), built with [Kairos](https://kairos.io) on Debian 13 (trixie).
 
 The root filesystem is an OCI image. Upgrades write a new image to the passive slot and switch on reboot; the previous image stays bootable as the fallback entry, and a recovery image sits beside both. Machine state lives on `COS_PERSISTENT`.
 
@@ -8,18 +8,18 @@ The root filesystem is an OCI image. Upgrades write a new image to the passive s
 
 ## Flavors
 
-| Flavor | Kernel | Firmware | Use |
+| Flavor | Kernel | Firmware | Artifacts |
 | --- | --- | --- | --- |
-| `metal` | `linux-image-generic` | yes | bare metal |
-| `cloud` | `linux-image-virtual` | no | KVM guests: OpenStack, Proxmox, most VPS providers |
-| `aws` | `linux-image-aws` | no | EC2 |
-| `azure` | `linux-image-azure` | no | Azure |
+| `metal` | `linux-image-amd64` | `firmware-linux` | installer ISO, EFI raw disk |
+| `cloud` | `linux-image-cloud-amd64` | none | installer ISO, qcow2, EFI raw disk (AMI import), VHD (Azure) |
+
+Debian's cloud kernel is the one its official AWS, Azure, GCE and OpenStack images use, so one flavor covers EC2, Azure, OpenStack, Proxmox and plain KVM.
 
 ```sh
 docker build --build-arg FLAVOR=cloud --build-arg VERSION=v1 -t hakopod-os:cloud .
 ```
 
-All flavors leave out ZFS, unattended-upgrades, the Ubuntu Pro client, snapd, documentation, man pages and translations. Copyright files are kept.
+Recommended packages are off, and documentation, man pages and translations are left out. Copyright files are kept.
 
 ## How Hakopod fits on an immutable root
 
@@ -37,7 +37,7 @@ A Hakopod installer mode that understands image-based hosts would make the last 
 
 ## Measurements
 
-QEMU/KVM on a GitHub-hosted `ubuntu-24.04` runner, 4 vCPUs, 8 GiB RAM, Hakopod 0.1.0-alpha.74, 2 November 2026.
+The figures below were taken on the earlier Ubuntu 24.04 base and will be replaced once the Debian image has been measured. QEMU/KVM on a GitHub-hosted `ubuntu-24.04` runner, 4 vCPUs, 8 GiB RAM, Hakopod 0.1.0-alpha.74, 2 November 2026.
 
 | Flavor | Image | Kernel + initrd + userspace |
 | --- | --- | --- |

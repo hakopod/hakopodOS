@@ -3,10 +3,9 @@
 #
 #   release/build-artifacts.sh <flavor> <version> <image> <outdir>
 #
-#   metal  installer ISO and EFI raw disk (zstd)
-#   cloud  installer ISO and qcow2 (OpenStack, Proxmox, plain KVM)
-#   aws    EFI raw disk (zstd), for import as an AMI
-#   azure  fixed VHD (zstd)
+#   metal  installer ISO, EFI raw disk (zstd)
+#   cloud  installer ISO, qcow2 (OpenStack, Proxmox, plain KVM),
+#          EFI raw disk (zstd, for import as an AMI), fixed VHD (zstd, Azure)
 #
 # No cloud-config is embedded: published images carry no users or keys.
 # Machines get theirs from cloud user-data or the install configuration.
@@ -42,9 +41,11 @@ efi_raw() { [[ -f $work/efi/.done ]] || { aurora "$work/efi" --set disk.efi=true
 
 case $flavor in
   metal) iso; zstd -q -T0 -10 --long=27 "$(efi_raw)" -o "$out/$base.raw.zst" ;;
-  cloud) iso; qemu-img convert -c -O qcow2 "$(efi_raw)" "$out/$base.qcow2" ;;
-  aws)   zstd -q -T0 -10 --long=27 "$(efi_raw)" -o "$out/$base.raw.zst" ;;
-  azure) aurora "$work/vhd" --set disk.vhd=true
+  cloud) iso
+         raw=$(efi_raw)
+         qemu-img convert -c -O qcow2 "$raw" "$out/$base.qcow2"
+         zstd -q -T0 -10 --long=27 "$raw" -o "$out/$base.raw.zst"
+         aurora "$work/vhd" --set disk.vhd=true
          zstd -q -T0 -10 --long=27 "$(pick "$work/vhd" '*.vhd')" -o "$out/$base.vhd.zst" ;;
   *)     echo "unknown flavor: $flavor" >&2; exit 1 ;;
 esac

@@ -7,7 +7,7 @@ on:
       flavors:
         description: Flavors to build (dry run; nothing is published)
         type: string
-        default: '["metal", "cloud", "aws", "azure"]'
+        default: '["metal", "cloud"]'
 permissions:
   contents: read
 concurrency:
@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flavor: ${{ fromJSON(inputs.flavors || '["metal", "cloud", "aws", "azure"]') }}
+        flavor: ${{ fromJSON(inputs.flavors || '["metal", "cloud"]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
