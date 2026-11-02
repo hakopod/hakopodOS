@@ -1,0 +1,110 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      flavors:
+        description: Flavors to build (dry run; nothing is published)
+        type: string
+        default: '["metal", "cloud", "aws", "azure"]'
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') }}
+  IMAGE: ghcr.io/hakopod/hakopod-os
+jobs:
+  build:
+    name: ${{ matrix.flavor }}
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: ${{ fromJSON(inputs.flavors || '["metal", "cloud", "aws", "azure"]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends qemu-utils zstd
+          df -h /
+      - name: Version
+        id: version
+        run: |
+          if [ "$PUBLISH" = true ]; then v=${GITHUB_REF_NAME#v}; else v=0.0.0-dev.${GITHUB_SHA::12}; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Build the OS image
+        run: docker build --build-arg VERSION=v${{ steps.version.outputs.version }} --build-arg FLAVOR=${{ matrix.flavor }} -t hakopod-os:${{ matrix.flavor }} .
+      - name: Push, sign and attest the OS image
+        id: push
+        if: env.PUBLISH == 'true'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          ref=$IMAGE:${{ steps.version.outputs.version }}-${{ matrix.flavor }}
+          docker tag hakopod-os:${{ matrix.flavor }} "$ref"
+          docker push "$ref"
+          echo "digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$ref" | cut -d@ -f2)" >> "$GITHUB_OUTPUT"
+      - uses: sigstore/cosign-installer@v3
+        if: env.PUBLISH == 'true'
+      - name: Sign the OS image
+        if: env.PUBLISH == 'true'
+        run: cosign sign --yes "$IMAGE@${{ steps.push.outputs.digest }}"
+      - uses: actions/attest-build-provenance@v2
+        if: env.PUBLISH == 'true'
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+      - name: Build installer and disk images
+        run: release/build-artifacts.sh ${{ matrix.flavor }} ${{ steps.version.outputs.version }} hakopod-os:${{ matrix.flavor }} dist
+      - uses: actions/upload-artifact@v4
+        if: env.PUBLISH == 'true'
+        with:
+          name: dist-${{ matrix.flavor }}
+          path: dist
+          retention-days: 3
+          compression-level: 0
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS && cat SHA256SUMS
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --prerelease \
+            --title "hakopodOS ${GITHUB_REF_NAME#v}" --notes-file - <<EOF
+          Images for ${GITHUB_REF_NAME#v}. OS images for upgrades: \`$IMAGE:${GITHUB_REF_NAME#v}-<flavor>\`, signed with cosign (keyless) and attested.
+
+          Verify a download: \`sha256sum --check --ignore-missing SHA256SUMS\` and \`gh attestation verify <file> --repo $GITHUB_REPOSITORY\`.
+
+          No users or keys are built in. Provide a cloud-config with your SSH key as cloud user data, or at install time from the ISO.
+          EOF

@@ -4,6 +4,7 @@
 #   metal  linux-image-generic + linux-firmware
 #   cloud  linux-image-virtual, no firmware (KVM, OpenStack and similar)
 #   aws    linux-image-aws, no firmware (EC2)
+#   azure  linux-image-azure, no firmware (Azure)
 #
 # No Kairos Kubernetes provider is installed. Hakopod ships its own pinned
 # K3s, and its installer refuses hosts that already carry cluster state.
@@ -34,6 +35,7 @@ RUN set -eu; \
       metal) kernel="linux-image-generic linux-firmware" ;; \
       cloud) kernel=linux-image-virtual ;; \
       aws)   kernel=linux-image-aws ;; \
+      azure) kernel=linux-image-azure ;; \
       *)     echo "unknown FLAVOR: $FLAVOR" >&2; exit 1 ;; \
     esac; \
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends $kernel; \

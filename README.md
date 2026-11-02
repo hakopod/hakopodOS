@@ -13,6 +13,7 @@ The root filesystem is an OCI image. Upgrades write a new image to the passive s
 | `metal` | `linux-image-generic` | yes | bare metal |
 | `cloud` | `linux-image-virtual` | no | KVM guests: OpenStack, Proxmox, most VPS providers |
 | `aws` | `linux-image-aws` | no | EC2 |
+| `azure` | `linux-image-azure` | no | Azure |
 
 ```sh
 docker build --build-arg FLAVOR=cloud --build-arg VERSION=v1 -t hakopod-os:cloud .

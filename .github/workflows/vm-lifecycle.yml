@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flavor: [metal, cloud, aws]
+        flavor: [metal, cloud, aws, azure]
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
