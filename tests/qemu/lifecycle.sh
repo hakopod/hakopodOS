@@ -191,16 +191,24 @@ else
 fi
 footprint os
 memory_report os
-if [[ ${PROFILE_ONLY:-} ]]; then
-  kill "$(cat "$WORK/qemu.pid")" 2>/dev/null || true
-  exit 0
-fi
 
 grub=$(vm 'e=$(command -v grub2-editenv || command -v grub-editenv); sudo "$e" /oem/grub_oem_env list 2>&1 | grep "^timeout="' 2>&1 || true)
+# Every GRUB environment and config GRUB reads on the way to the kernel.
+vm 'e=$(command -v grub2-editenv || command -v grub-editenv); set -x
+  sudo "$e" /oem/grub_oem_env list
+  for f in /run/initramfs/cos-state/grubenv /run/initramfs/cos-state/grub_oem_env /run/initramfs/cos-state/boot_assessment; do sudo "$e" "$f" list; done
+  sudo find /run/initramfs/cos-state -maxdepth 3 -name "*.cfg" -o -maxdepth 3 -name grubenv -o -maxdepth 3 -name grubcustom -o -maxdepth 3 -name grubmenu
+  sudo grep -rn -i -E "timeout|sleep" /run/initramfs/cos-state --include="*.cfg" 2>/dev/null | head -20
+  ls -la /run/initramfs/cos-state' > "$OUT/grub.txt" 2>&1 || true
 if [[ $grub == "timeout=1" ]]; then
   record os "grub timeout" pass "$grub"
 else
   record os "grub timeout" fail "grub_oem_env: ${grub:-no timeout}; $(vm 'ls /oem; command -v grub2-editenv grub-editenv' 2>&1 | tr '\n' ' ')"
+fi
+
+if [[ ${PROFILE_ONLY:-} ]]; then
+  kill "$(cat "$WORK/qemu.pid")" 2>/dev/null || true
+  exit 0
 fi
 
 if vm 'mountpoint -q /var/lib && test -f /oem/91_hakopod-layout.yaml'; then
