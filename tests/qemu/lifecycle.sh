@@ -40,8 +40,11 @@ wait_boot() { # wait_boot active_boot|passive_boot <timeout>
   return 1
 }
 
+now() { python3 -c 'import time; print(f"{time.monotonic():.2f}")'; }
+
 reboot_vm() {
   REBOOT_AT=$SECONDS
+  REBOOT_T=$(now)
   vm 'sudo systemctl reboot' || true
   sleep 15
 }
@@ -56,7 +59,27 @@ boot_timing() { # boot_timing <phase>
   vm 'systemd-analyze critical-chain --no-pager; systemd-analyze blame --no-pager' > "$OUT/boot-$1.txt" 2>&1 || true
   # systemd-analyze cannot attribute initramfs time; keep the early journal.
   vm 'sudo journalctl -b -o short-monotonic --no-pager | head -600' > "$OUT/boot-$1-journal.txt" 2>&1 || true
-  record timing "boot $1" pass "reboot to ssh ${wall}s; $(vm 'systemd-analyze 2>&1 | head -1' | tr '\n' ' ')"
+  # From the timestamped console: the kernel's "reboot: Restarting system"
+  # ends shutdown; the next boot's first kernel line ends firmware and boot
+  # loader.
+  local split
+  split=$(python3 - "$OUT/console.log" "$REBOOT_T" <<'PY'
+import sys
+t0 = float(sys.argv[2]); lines = []
+for raw in open(sys.argv[1], 'rb'):
+    stamp, _, text = raw.decode(errors='replace').partition(' ')
+    try: t = float(stamp)
+    except ValueError: continue
+    if t >= t0: lines.append((t, text))
+restart = next((t for t, x in lines if 'reboot: Restarting system' in x), None)
+kernel = next((t for t, x in lines if restart and t > restart and 'Linux version' in x), None)
+parts = []
+if restart: parts.append(f"shutdown {restart - t0:.1f}s")
+if restart and kernel: parts.append(f"firmware+loader {kernel - restart:.1f}s")
+print(", ".join(parts) or "console split unavailable")
+PY
+)
+  record timing "boot $1" pass "reboot to ssh ${wall}s; $split; $(vm 'systemd-analyze 2>&1 | head -1' | tr '\n' ' ')"
 }
 
 # Idle footprint after things settle. "held" is memory the kernel cannot
@@ -131,10 +154,17 @@ qemu-img resize -f raw "$RAW" 64G
 record os "raw disk" pass "$(basename "$RAW"), 64G"
 
 # --- first boot -----------------------------------------------------------
+# The serial console goes through a pipe so each line gets a host-side
+# monotonic timestamp: that splits a reboot into shutdown, firmware and
+# boot loader, and kernel onwards.
+mkfifo "$WORK/serial.in" "$WORK/serial.out"
+python3 -u -c 'import sys, time
+for line in sys.stdin.buffer: sys.stdout.buffer.write(b"%.2f " % time.monotonic() + line)' \
+  < "$WORK/serial.out" > "$OUT/console.log" &
 qemu-system-x86_64 -enable-kvm -cpu host -smp 4 -m 8192 \
   -drive file="$RAW",format=raw,if=virtio \
   -nic user,model=virtio-net-pci,hostfwd=tcp::2222-:22 \
-  -display none -serial file:"$OUT/console.log" -daemonize -pidfile "$WORK/qemu.pid"
+  -display none -serial pipe:"$WORK/serial" -daemonize -pidfile "$WORK/qemu.pid"
 
 # The raw image boots recovery, resets onto the disk, then reboots to active.
 if out=$(wait_boot active_boot 1500); then
