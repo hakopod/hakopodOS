@@ -37,24 +37,29 @@ A Hakopod installer mode that understands image-based hosts would make the last 
 
 ## Measurements
 
-QEMU/KVM with OVMF (UEFI) on a GitHub-hosted `ubuntu-24.04` runner, 4 vCPUs, 8 GiB RAM, Hakopod 0.1.0-alpha.76, 3 November 2026. Single runs, not benchmarks.
+QEMU/KVM with OVMF (UEFI) on a GitHub-hosted `ubuntu-24.04` runner, 4 vCPUs, 8 GiB RAM, kairos-init v4.4.0, Hakopod 0.1.0-alpha.76, 3 November 2026. Single runs, not benchmarks.
 
 | Flavor | OS image | Idle, OS only | Idle, OS + Hakopod |
 | --- | --- | --- | --- |
-| `cloud` | 652 MB | 51 MiB held, 0.0 % CPU | 704 MiB held, 2.1 % CPU |
-| `metal` | 888 MB | 56 MiB held, 0.0 % CPU | 752 MiB held, 1.9 % CPU |
+| `cloud` | 692 MB | 52 MiB held, 0.0 % CPU | 715 MiB held, 1.6 % CPU |
+| `metal` | 929 MB | 56 MiB held, 0.0 % CPU | 743 MiB held, 2.0 % CPU |
 
 "Held" is memory the kernel cannot reclaim: anonymous pages, shmem, unreclaimable slab, kernel stacks and page tables. With Hakopod, nearly all of it is K3s, PostgreSQL and the Hakopod services.
 
-Reboot with Hakopod running, split from a host-timestamped serial console:
+Reboot with Hakopod running:
 
-| | Shutdown | Firmware + GRUB | Reboot to SSH | Reboot to healthy API |
-| --- | --- | --- | --- | --- |
-| reboot | 4.5 to 5.4 s | 3.3 to 3.6 s | 28 to 29 s | 44 to 45 s |
-| A/B upgrade | 4.6 to 5.8 s | 3.3 to 3.7 s | 29 to 30 s | 45 to 49 s |
-| rollback | 4.7 s | 3.6 to 3.7 s | 29 to 30 s | 41 to 43 s |
+| Flavor | Shutdown | Reboot to SSH | Reboot to healthy API |
+| --- | --- | --- | --- |
+| `cloud` | 4.2 to 4.4 s | 19 s | 28 to 34 s |
+| `metal` | 4.2 to 4.7 s | 22 to 25 s | 39 to 45 s |
 
-Two fixes produced most of that. GRUB waited ten seconds at its menu on every boot: grub.cfg loads the first `/grub_oem_env` it finds, which is the copy on `COS_STATE`, so the timeout is now set there from the install, reset and upgrade hooks. And the Hakopod dashboard ignored SIGTERM until systemd killed it after 30 s; Hakopod 0.1.0-alpha.76 exits within five seconds. Before both, a reboot with Hakopod running took 67 to 71 s to SSH and 83 to 90 s to a healthy API.
+The same holds after an A/B upgrade and after rollback. A cloud boot is 2.4 s of kernel, 4.3 s of initramfs and 5.5 s of userspace (12.1 s), with about 3.5 s of firmware and GRUB before it.
+
+Three changes brought a reboot with Hakopod running down from 67 to 71 s to SSH and 83 to 90 s to a healthy API:
+
+- **GRUB** waited ten seconds at its menu on every boot. grub.cfg loads the first `/grub_oem_env` it finds, which is the copy on `COS_STATE`, so the timeout is now set there from the install, reset and upgrade hooks.
+- **The Hakopod dashboard** ignored SIGTERM until systemd killed it after 30 s. Hakopod 0.1.0-alpha.76 exits within five seconds.
+- **immucore** in kairos-init v0.17.3 waited a full second before every mount attempt. kairos-init v4.4.0 mounts immediately and retries every 250 ms, taking the initramfs from about 10 s to 4.3 s.
 
 | Artifact | `cloud` | `metal` |
 | --- | --- | --- |
@@ -63,7 +68,7 @@ Two fixes produced most of that. GRUB waited ten seconds at its menu on every bo
 | EFI raw disk, zstd | 210 MB | 324 MB |
 | Azure VHD, zstd | 210 MB | |
 
-What is left in a boot: the kernel (2 to 3 s), about 10 s in the initramfs, where immucore's mount steps each take close to one second, and userspace to SSH. K3s and the Hakopod services take another 15 s or so to report healthy.
+Artifact sizes were measured before the move to kairos-init v4.4.0, which made the OS image about 40 MB larger.
 
 ## Hardening
 
