@@ -56,6 +56,17 @@ boot_timing() { # boot_timing <phase>
   record timing "boot $1" pass "reboot to ssh ${wall}s; $(vm 'systemd-analyze 2>&1 | head -1' | tr '\n' ' ')"
 }
 
+# Idle footprint after things settle: RAM in use (MemTotal - MemAvailable),
+# share of CPU time not idle over 30 s, and the number of processes.
+footprint() { # footprint <label>
+  sleep 60
+  record timing "idle $1" pass "$(vm 'awk "/MemTotal/{t=\$2} /MemAvailable/{a=\$2} END{printf \"%d MiB used, \", (t-a)/1024}" /proc/meminfo
+    read -r _ a1 b1 c1 d1 e1 f1 g1 h1 _ < /proc/stat; sleep 30; read -r _ a2 b2 c2 d2 e2 f2 g2 h2 _ < /proc/stat
+    busy=$(( (a2+b2+c2+f2+g2+h2) - (a1+b1+c1+f1+g1+h1) )); total=$(( busy + (d2+e2) - (d1+e1) ))
+    awk -v b=$busy -v t=$total "BEGIN{printf \"cpu %.1f%% busy, \", 100*b/t}"
+    echo "$(ls -d /proc/[0-9]* | wc -l) processes"' 2>&1 | tr '\n' ' ')"
+}
+
 services() {
   vm 'for u in hakopod-k3s hakopod-api hakopod-dashboard; do printf "%s=%s " $u "$(systemctl is-active $u)"; done' 2>&1 || true
 }
@@ -111,6 +122,19 @@ else
   record os "first boot" fail "$out"; exit 1
 fi
 
+sysctls=$(vm 'sysctl -n kernel.kptr_restrict kernel.dmesg_restrict kernel.unprivileged_bpf_disabled kernel.kexec_load_disabled kernel.sysrq net.ipv4.conf.all.accept_redirects' | tr '\n' ' ')
+# Ask the running sshd which methods it offers: a password-only client must be
+# refused with publickey as the sole remaining method.
+methods=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PubkeyAuthentication=no \
+  -o PreferredAuthentications=password,keyboard-interactive -o BatchMode=yes -o ConnectTimeout=10 \
+  -p 2222 kairos@127.0.0.1 true 2>&1 | grep -o 'Permission denied ([^)]*)' || true)
+if [[ $sysctls == "2 1 1 1 0 0 " && $methods == "Permission denied (publickey)" ]]; then
+  record os "hardening" pass "sysctl ok; sshd offers publickey only"
+else
+  record os "hardening" fail "sysctl: $sysctls; sshd: ${methods:-no answer}"
+fi
+footprint os
+
 if vm 'mountpoint -q /var/lib && test -f /oem/91_hakopod-layout.yaml'; then
   record os "state layout" pass "$(vm 'findmnt -no SOURCE /var/lib; df -h --output=size /var/lib | tail -1' | tr '\n' ' ')"
 else
@@ -144,6 +168,7 @@ else
 fi
 api_ready reboot
 hakopod_state reboot
+[[ ${INSTALLED:-} ]] && footprint "os + hakopod"
 
 # --- A/B upgrade ----------------------------------------------------------
 put "$WORK/hakopod-os-v2.tar" /tmp/hakopod-os-v2.tar

@@ -1,0 +1,24 @@
+# hakopodOS sshd policy. Loaded through ssh.service.d/hakopod-os.conf so it
+# ships with the image; the first value of each keyword wins, so these take
+# precedence over the persistent /etc/ssh/sshd_config included below.
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AuthenticationMethods publickey
+PermitEmptyPasswords no
+MaxAuthTries 3
+LoginGraceTime 20
+
+# The Hakopod dashboard is reached through a local forward (ssh -L).
+AllowTcpForwarding local
+AllowAgentForwarding no
+AllowStreamLocalForwarding no
+X11Forwarding no
+PermitTunnel no
+GatewayPorts no
+PermitUserEnvironment no
+
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+Include /etc/ssh/sshd_config
