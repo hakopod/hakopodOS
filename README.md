@@ -44,9 +44,24 @@ QEMU/KVM on a GitHub-hosted `ubuntu-24.04` runner, 4 vCPUs, 8 GiB RAM, Hakopod 0
 | `aws` | 956 MB | 3.8 + 10.8 + 4.4 = 19.0 s |
 | `cloud` | 706 MB | 2.0 + 9.1 + 3.7 = 14.8 s |
 
-With Hakopod installed (generic kernel, before the flavors were split): reboot to a healthy API took 78 s; after an A/B upgrade 51 s; after rollback 48 s. These are single runs, not benchmarks.
+Idle footprint, measured as MemTotal minus MemAvailable and CPU time over 30 s:
 
-Most of the initrd time is immucore mounting the active image and its bind mounts. That is the next thing to look at, together with GRUB's timeout and pre-loading the K3s images into the OS image.
+| Flavor | OS only | OS + Hakopod 0.1.0-alpha.75 |
+| --- | --- | --- |
+| `metal` | 424 MiB, 0.0 % CPU | 1024 MiB, 2.1 % CPU |
+| `aws` | 454 MiB, 0.1 % CPU | 1068 MiB, 1.9 % CPU |
+| `cloud` | 405 MiB, 0.0 % CPU | 997 MiB, 1.9 % CPU |
+
+With Hakopod installed, reboot to a healthy API takes 83 to 85 s, about 50 to 60 s after an A/B upgrade or rollback (the plain reboot also stops a fully running stack). These are single runs, not benchmarks.
+
+Most of the initrd time is immucore mounting the active image and its bind mounts. That, the 400 MiB the bare OS holds at idle, GRUB's timeout and pre-loading the K3s images are the next things to look at.
+
+## Hardening
+
+- sshd accepts public keys only: no root login, no password or keyboard-interactive auth, no agent, X11 or remote forwarding. The policy ships in the image and is loaded through an `ssh.service` drop-in, so it follows upgrades.
+- Kernel defaults in `/usr/lib/sysctl.d/90-hakopod-os.conf`: restricted kernel pointers and dmesg, no unprivileged BPF or perf, hardened BPF JIT, ptrace limited to ancestors, no kexec loading or SysRq, no ICMP redirects or source routing.
+
+Planned: [Hakopod in the image](docs/design/hakopod-in-image.md), then Trusted Boot (signed UKI, dm-verity, TPM-sealed persistent partition) and SSH off by default.
 
 ## License
 
