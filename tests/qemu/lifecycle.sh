@@ -161,6 +161,13 @@ if [[ ${PROFILE_ONLY:-} ]]; then
   exit 0
 fi
 
+grub=$(vm 'e=$(command -v grub2-editenv || command -v grub-editenv); sudo "$e" /oem/grub_oem_env list 2>&1 | grep "^timeout="' 2>&1 || true)
+if [[ $grub == "timeout=1" ]]; then
+  record os "grub timeout" pass "$grub"
+else
+  record os "grub timeout" fail "grub_oem_env: ${grub:-no timeout}; $(vm 'ls /oem; command -v grub2-editenv grub-editenv' 2>&1 | tr '\n' ' ')"
+fi
+
 if vm 'mountpoint -q /var/lib && test -f /oem/91_hakopod-layout.yaml'; then
   record os "state layout" pass "$(vm 'findmnt -no SOURCE /var/lib; df -h --output=size /var/lib | tail -1' | tr '\n' ' ')"
 else
