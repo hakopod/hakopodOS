@@ -20,11 +20,19 @@ if ! cmp -s "$src" "$oem/$name"; then
   echo "hakopod-os: installed $name on the OEM partition; it applies from the next boot"
 fi
 
-# The Kairos grub.cfg starts with "set timeout=10" and then loads
-# grub_oem_env from OEM, so a value here wins. One second still allows
-# picking an entry at the console; kairos-agent bootentry does the rest.
+# GRUB timeout. The Kairos grub.cfg on COS_STATE opens with "set timeout=10"
+# and then loads the first /grub_oem_env that "search --file" finds, which
+# is the copy on COS_STATE itself, not the one on OEM. Set it there; COS_STATE
+# is only writable from the install, reset and upgrade hooks, so at runtime,
+# when it is mounted read-only, this part is skipped.
 editenv=$(command -v grub2-editenv || command -v grub-editenv || true)
-if [ -n "$editenv" ] && [ "$("$editenv" "$oem/grub_oem_env" list 2>/dev/null | sed -n 's/^timeout=//p')" != 1 ]; then
-  "$editenv" "$oem/grub_oem_env" set timeout=1
-  echo "hakopod-os: GRUB timeout set to 1 s"
+state_dev=$(blkid -L COS_STATE 2>/dev/null || true)
+if [ -n "$editenv" ] && [ -n "$state_dev" ] && ! findmnt -rn -S "$state_dev" -O ro >/dev/null; then
+  state=$(mktemp -d /run/hakopod-os-state.XXXXXX)
+  mount "$state_dev" "$state"
+  if [ "$("$editenv" "$state/grub_oem_env" list 2>/dev/null | sed -n 's/^timeout=//p')" != 1 ]; then
+    "$editenv" "$state/grub_oem_env" set timeout=1
+    echo "hakopod-os: GRUB timeout set to 1 s"
+  fi
+  umount "$state"; rmdir "$state"
 fi

@@ -9,6 +9,10 @@ stages:
     - name: "Install the state layout on OEM"
       commands:
         - /usr/lib/hakopod-os/install-layout
+  after-upgrade:
+    - name: "Keep the state layout and GRUB settings"
+      commands:
+        - /usr/lib/hakopod-os/install-layout
   boot:
     # Covers systems installed from media that predates the hooks above.
     - if: '[ ! -e "/run/cos/recovery_mode" ]'

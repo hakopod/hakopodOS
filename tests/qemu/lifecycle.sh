@@ -192,7 +192,7 @@ fi
 footprint os
 memory_report os
 
-grub=$(vm 'e=$(command -v grub2-editenv || command -v grub-editenv); sudo "$e" /oem/grub_oem_env list 2>&1 | grep "^timeout="' 2>&1 || true)
+grub=$(vm 'e=$(command -v grub2-editenv || command -v grub-editenv); sudo "$e" /run/initramfs/cos-state/grub_oem_env list 2>&1 | grep "^timeout="' 2>&1 || true)
 # Every GRUB environment and config GRUB reads on the way to the kernel.
 vm 'e=$(command -v grub2-editenv || command -v grub-editenv); set -x
   sudo "$e" /oem/grub_oem_env list
