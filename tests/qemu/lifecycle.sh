@@ -10,7 +10,7 @@
 # OS checks gate the job. Hakopod checks and timings are reported alongside.
 set -euo pipefail
 
-HAKOPOD_VERSION=${HAKOPOD_VERSION:-0.1.0-alpha.75}
+HAKOPOD_VERSION=${HAKOPOD_VERSION:-0.1.0-alpha.76}
 FLAVOR=${FLAVOR:-metal}
 AURORABOOT=quay.io/kairos/auroraboot:v0.28.0
 HERE=$(cd "$(dirname "$0")" && pwd)

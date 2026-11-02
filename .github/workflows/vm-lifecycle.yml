@@ -10,7 +10,7 @@ on:
       hakopod_version:
         description: Hakopod release installed inside the VM
         type: string
-        default: 0.1.0-alpha.75
+        default: 0.1.0-alpha.76
       flavors:
         description: Flavors to run
         type: string
@@ -51,7 +51,7 @@ jobs:
           test -w /dev/kvm
       - name: Install, reboot, upgrade, roll back
         env:
-          HAKOPOD_VERSION: ${{ inputs.hakopod_version || '0.1.0-alpha.75' }}
+          HAKOPOD_VERSION: ${{ inputs.hakopod_version || '0.1.0-alpha.76' }}
           FLAVOR: ${{ matrix.flavor }}
           PROFILE_ONLY: ${{ inputs.profile_only && '1' || '' }}
         run: tests/qemu/lifecycle.sh
