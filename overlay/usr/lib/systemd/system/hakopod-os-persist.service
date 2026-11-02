@@ -1,0 +1,6 @@
+[Unit]
+Description=Move Hakopod installer state onto the persistent partition
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/hakopod-os/persist-hakopod

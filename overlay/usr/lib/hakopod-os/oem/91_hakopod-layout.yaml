@@ -1,0 +1,29 @@
+# Installed to /oem by hakopod-os-install-layout. It has to live on the OEM
+# partition: immucore builds the bind-mount list early in the initramfs, and
+# a rootfs-stage override shipped in /system/oem does not reliably win.
+#
+# Replaces the stock PERSISTENT_STATE_PATHS from kairos-init. The stock list
+# pre-creates /etc/kubernetes, /var/lib/etcd and friends for its own k3s/k0s
+# providers; Hakopod brings its own K3s and treats those as foreign cluster
+# state. /var/lib is persisted whole so that /var/lib/hakopod does not exist
+# until the installer creates it.
+name: "hakopodOS persistent state"
+stages:
+  rootfs:
+    - if: '[ ! -e "/run/cos/recovery_mode" ] && [ ! -e "/run/cos/autoreset_mode" ] && [ ! -e "/run/cos/uki_install_mode" ]'
+      name: "Persistent state paths"
+      environment_file: /run/cos/cos-layout.env
+      environment:
+        PERSISTENT_STATE_PATHS: >-
+          /etc/modprobe.d
+          /etc/rancher
+          /etc/ssh
+          /etc/ssl/certs
+          /etc/systemd
+          /home
+          /opt
+          /root
+          /usr/libexec
+          /var/cores
+          /var/lib
+          /var/log

@@ -1,0 +1,37 @@
+#!/bin/sh
+# Move Hakopod installer state onto the persistent partition.
+#
+# The stock installer writes /etc/hakopod and adds two system accounts. On an
+# image-based root both live in /etc, which is rebuilt from the image on every
+# boot. Triggered by hakopod-os-persist.path; does nothing until the installer
+# has marked the installation complete.
+set -eu
+marker=/etc/hakopod/installation.json
+state=/usr/local/.state/etc-hakopod.bind
+saved=/usr/local/hakopod-os
+
+[ -f "$marker" ] && grep -q '"completed": true' "$marker" || exit 0
+
+mkdir -p "$saved"
+for db in passwd group shadow; do
+  getent "$db" hakopod-api hakopod-dashboard > "$saved/$db.new"
+  mv "$saved/$db.new" "$saved/$db"
+done
+chmod 600 "$saved/shadow"
+
+if ! mountpoint -q /etc/hakopod; then
+  mkdir -p "$state"
+  cp -a /etc/hakopod/. "$state/"
+  # Bind it now, not just from the next boot, so later writes persist.
+  mount --bind "$state" /etc/hakopod
+  cat > /oem/92_hakopod-etc.yaml <<'YAML'
+name: "Hakopod configuration"
+stages:
+  rootfs:
+    - name: "Bind /etc/hakopod"
+      environment_file: /run/cos/custom-layout.env
+      environment:
+        CUSTOM_BIND_MOUNTS: "/etc/hakopod"
+YAML
+fi
+echo "hakopod-os: /etc/hakopod and $(wc -l < "$saved/passwd") service accounts are persistent"

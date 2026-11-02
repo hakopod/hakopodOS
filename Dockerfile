@@ -45,10 +45,13 @@ RUN set -eu; \
     rm -rf /var/lib/apt/lists/* /usr/share/doc/*/changelog* /usr/share/man/* /usr/share/info/*; \
     find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name locale.alias -exec rm -rf {} +
 
+COPY overlay/ /
+RUN mkdir -p /usr/lib/systemd/system/multi-user.target.wants \
+ && ln -s ../hakopod-os-persist.path /usr/lib/systemd/system/multi-user.target.wants/hakopod-os-persist.path
+
 # Links whichever kernel is installed and builds the initramfs.
 RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v0.17.3,src=/kairos-init,dst=/kairos-init \
     /kairos-init -s init --version "${VERSION}"
 
-RUN mkdir -p /usr/lib/hakopod-os \
- && printf '%s\n' "${VERSION}" > /usr/lib/hakopod-os/version \
+RUN printf '%s\n' "${VERSION}" > /usr/lib/hakopod-os/version \
  && printf '%s\n' "${FLAVOR}" > /usr/lib/hakopod-os/flavor

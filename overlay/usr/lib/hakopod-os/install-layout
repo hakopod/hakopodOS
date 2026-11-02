@@ -1,0 +1,20 @@
+#!/bin/sh
+# Install the hakopodOS state layout on the OEM partition. Called from the
+# after-install and after-reset hooks, and once more at boot as a fallback.
+set -eu
+src=/usr/lib/hakopod-os/oem/91_hakopod-layout.yaml
+name=$(basename "$src")
+
+if mountpoint -q /oem; then
+  oem=/oem
+else
+  dev=$(blkid -L COS_OEM 2>/dev/null) || { echo "hakopod-os: no COS_OEM partition" >&2; exit 0; }
+  oem=$(mktemp -d /run/hakopod-os-oem.XXXXXX)
+  mount "$dev" "$oem"
+  trap 'umount "$oem"; rmdir "$oem"' EXIT
+fi
+
+if ! cmp -s "$src" "$oem/$name"; then
+  install -m 0644 "$src" "$oem/$name"
+  echo "hakopod-os: installed $name on the OEM partition; it applies from the next boot"
+fi

@@ -1,0 +1,24 @@
+# hakopodOS defaults.
+name: "hakopodOS"
+stages:
+  after-install:
+    - name: "Install the state layout on OEM"
+      commands:
+        - /usr/lib/hakopod-os/install-layout
+  after-reset:
+    - name: "Install the state layout on OEM"
+      commands:
+        - /usr/lib/hakopod-os/install-layout
+  boot:
+    # Covers systems installed from media that predates the hooks above.
+    - if: '[ ! -e "/run/cos/recovery_mode" ]'
+      name: "Ensure the state layout is on OEM"
+      commands:
+        - /usr/lib/hakopod-os/install-layout
+  initramfs:
+    # /etc comes from the image on every boot. Re-add the Hakopod service
+    # accounts recorded by persist-hakopod after the installer finished.
+    - if: '[ -f /usr/local/hakopod-os/passwd ]'
+      name: "Restore Hakopod service accounts"
+      commands:
+        - for db in passwd group shadow; do while IFS= read -r line; do grep -qxF "$line" /etc/$db || echo "$line" >> /etc/$db; done < /usr/local/hakopod-os/$db; done
