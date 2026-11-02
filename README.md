@@ -37,14 +37,24 @@ A Hakopod installer mode that understands image-based hosts would make the last 
 
 ## Measurements
 
-QEMU/KVM on a GitHub-hosted `ubuntu-24.04` runner, 4 vCPUs, 8 GiB RAM, Hakopod 0.1.0-alpha.75, 2 November 2026. Single runs, not benchmarks.
+QEMU/KVM with OVMF (UEFI) on a GitHub-hosted `ubuntu-24.04` runner, 4 vCPUs, 8 GiB RAM, Hakopod 0.1.0-alpha.76, 3 November 2026. Single runs, not benchmarks.
 
 | Flavor | OS image | Idle, OS only | Idle, OS + Hakopod |
 | --- | --- | --- | --- |
-| `cloud` | 652 MB | 50 MiB held, 0.0 % CPU | 691 MiB held, 1.8 % CPU |
-| `metal` | 888 MB | 54 MiB held, 0.0 % CPU | 712 MiB held, 2.0 % CPU |
+| `cloud` | 652 MB | 51 MiB held, 0.0 % CPU | 704 MiB held, 2.1 % CPU |
+| `metal` | 888 MB | 56 MiB held, 0.0 % CPU | 752 MiB held, 1.9 % CPU |
 
 "Held" is memory the kernel cannot reclaim: anonymous pages, shmem, unreclaimable slab, kernel stacks and page tables. With Hakopod, nearly all of it is K3s, PostgreSQL and the Hakopod services.
+
+Reboot with Hakopod running, split from a host-timestamped serial console:
+
+| | Shutdown | Firmware + GRUB | Reboot to SSH | Reboot to healthy API |
+| --- | --- | --- | --- | --- |
+| reboot | 4.5 to 5.4 s | 3.3 to 3.6 s | 28 to 29 s | 44 to 45 s |
+| A/B upgrade | 4.6 to 5.8 s | 3.3 to 3.7 s | 29 to 30 s | 45 to 49 s |
+| rollback | 4.7 s | 3.6 to 3.7 s | 29 to 30 s | 41 to 43 s |
+
+Two fixes produced most of that. GRUB waited ten seconds at its menu on every boot: grub.cfg loads the first `/grub_oem_env` it finds, which is the copy on `COS_STATE`, so the timeout is now set there from the install, reset and upgrade hooks. And the Hakopod dashboard ignored SIGTERM until systemd killed it after 30 s; Hakopod 0.1.0-alpha.76 exits within five seconds. Before both, a reboot with Hakopod running took 67 to 71 s to SSH and 83 to 90 s to a healthy API.
 
 | Artifact | `cloud` | `metal` |
 | --- | --- | --- |
@@ -53,9 +63,7 @@ QEMU/KVM on a GitHub-hosted `ubuntu-24.04` runner, 4 vCPUs, 8 GiB RAM, Hakopod 0
 | EFI raw disk, zstd | 210 MB | 324 MB |
 | Azure VHD, zstd | 210 MB | |
 
-Reboot to a healthy Hakopod API takes about 80 to 90 s, and about 50 to 60 s after an A/B upgrade or rollback; the plain reboot also stops a fully running stack. Those figures predate the one-second GRUB timeout.
-
-Next: the time a running K3s stack takes to stop, the 9 to 11 s immucore spends in the initramfs, and pre-loading the K3s images into the OS image.
+What is left in a boot: the kernel (2 to 3 s), about 10 s in the initramfs, where immucore's mount steps each take close to one second, and userspace to SSH. K3s and the Hakopod services take another 15 s or so to report healthy.
 
 ## Hardening
 
