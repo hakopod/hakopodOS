@@ -1,6 +1,7 @@
 #!/bin/sh
-# Install the hakopodOS state layout on the OEM partition. Called from the
-# after-install and after-reset hooks, and once more at boot as a fallback.
+# Install the hakopodOS state layout and GRUB settings on the OEM partition.
+# Called from the after-install and after-reset hooks, and once more at boot
+# as a fallback.
 set -eu
 src=/usr/lib/hakopod-os/oem/91_hakopod-layout.yaml
 name=$(basename "$src")
@@ -17,4 +18,13 @@ fi
 if ! cmp -s "$src" "$oem/$name"; then
   install -m 0644 "$src" "$oem/$name"
   echo "hakopod-os: installed $name on the OEM partition; it applies from the next boot"
+fi
+
+# The Kairos grub.cfg starts with "set timeout=10" and then loads
+# grub_oem_env from OEM, so a value here wins. One second still allows
+# picking an entry at the console; kairos-agent bootentry does the rest.
+editenv=$(command -v grub2-editenv || command -v grub-editenv || true)
+if [ -n "$editenv" ] && [ "$("$editenv" "$oem/grub_oem_env" list 2>/dev/null | sed -n 's/^timeout=//p')" != 1 ]; then
+  "$editenv" "$oem/grub_oem_env" set timeout=1
+  echo "hakopod-os: GRUB timeout set to 1 s"
 fi

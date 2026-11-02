@@ -50,6 +50,9 @@ slot() { vm 'cat /usr/lib/hakopod-os/version'; }
 
 boot_timing() { # boot_timing <phase>
   local wall=$((SECONDS - ${REBOOT_AT:-$SECONDS}))
+  # What keeps systemd from reaching "startup finished", immucore's own
+  # timeline, and how long the previous boot took to shut down.
+  vm 'systemctl list-jobs --no-pager; sudo cat /run/immucore/boot-timeline.json; echo; sudo journalctl -b -1 -o short-monotonic --no-pager | tail -120' > "$OUT/boot-$1-detail.txt" 2>&1 || true
   vm 'systemd-analyze critical-chain --no-pager; systemd-analyze blame --no-pager' > "$OUT/boot-$1.txt" 2>&1 || true
   # systemd-analyze cannot attribute initramfs time; keep the early journal.
   vm 'sudo journalctl -b -o short-monotonic --no-pager | head -600' > "$OUT/boot-$1-journal.txt" 2>&1 || true
