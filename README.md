@@ -37,25 +37,25 @@ A Hakopod installer mode that understands image-based hosts would make the last 
 
 ## Measurements
 
-The figures below were taken on the earlier Ubuntu 24.04 base and will be replaced once the Debian image has been measured. QEMU/KVM on a GitHub-hosted `ubuntu-24.04` runner, 4 vCPUs, 8 GiB RAM, Hakopod 0.1.0-alpha.74, 2 November 2026.
+QEMU/KVM on a GitHub-hosted `ubuntu-24.04` runner, 4 vCPUs, 8 GiB RAM, Hakopod 0.1.0-alpha.75, 2 November 2026. Single runs, not benchmarks.
 
-| Flavor | Image | Kernel + initrd + userspace |
+| Flavor | OS image | Idle, OS only | Idle, OS + Hakopod |
+| --- | --- | --- | --- |
+| `cloud` | 652 MB | 50 MiB held, 0.0 % CPU | 691 MiB held, 1.8 % CPU |
+| `metal` | 888 MB | 54 MiB held, 0.0 % CPU | 712 MiB held, 2.0 % CPU |
+
+"Held" is memory the kernel cannot reclaim: anonymous pages, shmem, unreclaimable slab, kernel stacks and page tables. With Hakopod, nearly all of it is K3s, PostgreSQL and the Hakopod services.
+
+| Artifact | `cloud` | `metal` |
 | --- | --- | --- |
-| `metal` | 1.62 GB | 4.0 + 10.4 + 6.5 = 20.9 s |
-| `aws` | 956 MB | 3.8 + 10.8 + 4.4 = 19.0 s |
-| `cloud` | 706 MB | 2.0 + 9.1 + 3.7 = 14.8 s |
+| installer ISO | 307 MB | 455 MB |
+| qcow2 | 265 MB | |
+| EFI raw disk, zstd | 210 MB | 324 MB |
+| Azure VHD, zstd | 210 MB | |
 
-Idle footprint, measured as MemTotal minus MemAvailable and CPU time over 30 s:
+Reboot to a healthy Hakopod API takes about 80 to 90 s, and about 50 to 60 s after an A/B upgrade or rollback; the plain reboot also stops a fully running stack. Those figures predate the one-second GRUB timeout.
 
-| Flavor | OS only | OS + Hakopod 0.1.0-alpha.75 |
-| --- | --- | --- |
-| `metal` | 424 MiB, 0.0 % CPU | 1024 MiB, 2.1 % CPU |
-| `aws` | 454 MiB, 0.1 % CPU | 1068 MiB, 1.9 % CPU |
-| `cloud` | 405 MiB, 0.0 % CPU | 997 MiB, 1.9 % CPU |
-
-With Hakopod installed, reboot to a healthy API takes 83 to 85 s, about 50 to 60 s after an A/B upgrade or rollback (the plain reboot also stops a fully running stack). These are single runs, not benchmarks.
-
-Most of the initrd time is immucore mounting the active image and its bind mounts. That, the 400 MiB the bare OS holds at idle, GRUB's timeout and pre-loading the K3s images are the next things to look at.
+Next: the time a running K3s stack takes to stop, the 9 to 11 s immucore spends in the initramfs, and pre-loading the K3s images into the OS image.
 
 ## Hardening
 
