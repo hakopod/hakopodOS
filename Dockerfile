@@ -28,7 +28,7 @@ RUN apt-get update -qq \
       python3 bash curl ca-certificates openssl iproute2 util-linux acl passwd kmod coreutils \
       openssh-server
 
-RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v0.17.3,src=/kairos-init,dst=/kairos-init \
+RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.4.0@sha256:eb131bd9b4ed5b9b25cf761af9afa7d462bef27c2d0e9453ce884cf7733a6556,src=/kairos-init,dst=/kairos-init \
     /kairos-init -s install --version "${VERSION}" --skip-step installKernel
 
 RUN set -eu; \
@@ -48,7 +48,7 @@ RUN mkdir -p /usr/lib/systemd/system/multi-user.target.wants \
  && ln -s ../hakopod-os-persist.path /usr/lib/systemd/system/multi-user.target.wants/hakopod-os-persist.path
 
 # Links whichever kernel is installed and builds the initramfs.
-RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v0.17.3,src=/kairos-init,dst=/kairos-init \
+RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.4.0@sha256:eb131bd9b4ed5b9b25cf761af9afa7d462bef27c2d0e9453ce884cf7733a6556,src=/kairos-init,dst=/kairos-init \
     /kairos-init -s init --version "${VERSION}"
 
 # kairos-init brings storage, monitoring and network daemons a Hakopod host
