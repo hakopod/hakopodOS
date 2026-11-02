@@ -51,5 +51,20 @@ RUN mkdir -p /usr/lib/systemd/system/multi-user.target.wants \
 RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v0.17.3,src=/kairos-init,dst=/kairos-init \
     /kairos-init -s init --version "${VERSION}"
 
+# kairos-init brings storage, monitoring and network daemons a Hakopod host
+# has no use for; snmpd and rpcbind also listen on the network, and fail2ban
+# is redundant with key-only sshd. They go after the init stage, which
+# enables some of them. multipath-tools stays because kairos-init forces the
+# dracut multipath module; its daemon is masked. Purging can trigger
+# Debian's own initramfs build; Kairos boots /boot/initrd, so drop the rest.
+RUN set -eu; \
+    unused="fail2ban snmpd lldpd open-iscsi haveged rpcbind nfs-common"; \
+    purge=""; for p in $unused; do dpkg -s "$p" >/dev/null 2>&1 && purge="$purge $p"; done; \
+    [ -z "$purge" ] || DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq --auto-remove $purge; \
+    apt-get clean; rm -rf /var/lib/apt/lists/*; \
+    find /boot -maxdepth 1 -name 'initrd.img-*' -delete; \
+    test -e /boot/initrd; \
+    systemctl mask multipathd.service multipathd.socket
+
 RUN printf '%s\n' "${VERSION}" > /usr/lib/hakopod-os/version \
  && printf '%s\n' "${FLAVOR}" > /usr/lib/hakopod-os/flavor

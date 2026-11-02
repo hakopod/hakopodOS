@@ -56,11 +56,14 @@ boot_timing() { # boot_timing <phase>
   record timing "boot $1" pass "reboot to ssh ${wall}s; $(vm 'systemd-analyze 2>&1 | head -1' | tr '\n' ' ')"
 }
 
-# Idle footprint after things settle: RAM in use (MemTotal - MemAvailable),
-# share of CPU time not idle over 30 s, and the number of processes.
+# Idle footprint after things settle. "held" is memory the kernel cannot
+# reclaim: anonymous pages, shmem/tmpfs, unreclaimable slab, kernel stacks
+# and page tables. MemTotal - MemAvailable is also given; it includes the
+# free-memory reserves and some page cache. CPU is the share of time not
+# idle over 30 s.
 footprint() { # footprint <label>
   sleep 60
-  record timing "idle $1" pass "$(vm 'awk "/MemTotal/{t=\$2} /MemAvailable/{a=\$2} END{printf \"%d MiB used, \", (t-a)/1024}" /proc/meminfo
+  record timing "idle $1" pass "$(vm 'awk "/^(AnonPages|Shmem|SUnreclaim|KernelStack|PageTables):/{h+=\$2} /MemTotal/{t=\$2} /MemAvailable/{a=\$2} END{printf \"%d MiB held, %d MiB total-available, \", h/1024, (t-a)/1024}" /proc/meminfo
     read -r _ a1 b1 c1 d1 e1 f1 g1 h1 _ < /proc/stat; sleep 30; read -r _ a2 b2 c2 d2 e2 f2 g2 h2 _ < /proc/stat
     busy=$(( (a2+b2+c2+f2+g2+h2) - (a1+b1+c1+f1+g1+h1) )); total=$(( busy + (d2+e2) - (d1+e1) ))
     awk -v b=$busy -v t=$total "BEGIN{printf \"cpu %.1f%% busy, \", 100*b/t}"
