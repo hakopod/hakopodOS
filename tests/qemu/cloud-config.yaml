@@ -1,0 +1,8 @@
+#cloud-config
+# Test-only user. The key is generated per run and discarded with the VM.
+users:
+  - name: kairos
+    groups:
+      - admin
+    ssh_authorized_keys:
+      - "@SSH_PUBLIC_KEY@"
