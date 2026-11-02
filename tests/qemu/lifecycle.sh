@@ -79,7 +79,7 @@ memory_report() { # memory_report <label>
     sudo awk "NR>2 {printf \"%10d KiB  %s\n\", \$3*\$4/1024, \$1}" /proc/slabinfo | sort -rn | head -15
     df -h -t tmpfs -t overlay
     cat /proc/cmdline
-    losetup -l 2>/dev/null' > "$OUT/memory-$1.txt" 2>&1 || true
+    /usr/sbin/losetup -l 2>/dev/null' > "$OUT/memory-$1.txt" 2>&1 || true
 }
 
 services() {
@@ -137,7 +137,7 @@ else
   record os "first boot" fail "$out"; exit 1
 fi
 
-sysctls=$(vm 'sysctl -n kernel.kptr_restrict kernel.dmesg_restrict kernel.unprivileged_bpf_disabled kernel.kexec_load_disabled kernel.sysrq net.ipv4.conf.all.accept_redirects' | tr '\n' ' ')
+sysctls=$(vm '/usr/sbin/sysctl -n kernel.kptr_restrict kernel.dmesg_restrict kernel.unprivileged_bpf_disabled kernel.kexec_load_disabled kernel.sysrq net.ipv4.conf.all.accept_redirects' | tr '\n' ' ')
 # Ask the running sshd which methods it offers: a password-only client must be
 # refused with publickey as the sole remaining method.
 methods=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PubkeyAuthentication=no \
