@@ -2,7 +2,8 @@
 # VM lifecycle test for hakopodOS. Needs KVM; intended for a throwaway CI host.
 #
 #   1. build images v1 and v2 (identical apart from /usr/lib/hakopod-os/version)
-#   2. turn v1 into a raw disk with AuroraBoot and boot it under QEMU
+#   2. turn v1 into an EFI raw disk with AuroraBoot and boot it under QEMU
+#      with OVMF, as EC2, Azure and the release raw images do
 #   3. install Hakopod with its stock installer
 #   4. reboot, A/B upgrade to v2, then roll back to v1 via the fallback entry
 #
@@ -145,7 +146,7 @@ ssh-keygen -q -t ed25519 -N '' -f "$KEY"
 sed "s|@SSH_PUBLIC_KEY@|$(cat "$KEY.pub")|" "$HERE/cloud-config.yaml" > "$WORK/build/cloud-config.yaml"
 
 docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock -v "$WORK/build:/aurora" "$AURORABOOT" \
-  --set disable_http_server=true --set disable_netboot=true --set disk.bios=true \
+  --set disable_http_server=true --set disable_netboot=true --set disk.efi=true \
   --set container_image=hakopod-os:v1 --set state_dir=/aurora --cloud-config /aurora/cloud-config.yaml
 sudo chown -R "$(id -u):$(id -g)" "$WORK/build"
 RAW=$(find "$WORK/build" -maxdepth 3 -name '*.raw' | head -1)
@@ -161,14 +162,18 @@ mkfifo "$WORK/serial.in" "$WORK/serial.out"
 python3 -u -c 'import sys, time
 for line in sys.stdin.buffer: sys.stdout.buffer.write(b"%.2f " % time.monotonic() + line)' \
   < "$WORK/serial.out" > "$OUT/console.log" &
-qemu-system-x86_64 -enable-kvm -cpu host -smp 4 -m 8192 \
+OVMF_CODE=/usr/share/OVMF/OVMF_CODE_4M.fd
+cp /usr/share/OVMF/OVMF_VARS_4M.fd "$WORK/ovmf-vars.fd"
+qemu-system-x86_64 -enable-kvm -cpu host -smp 4 -m 8192 -machine q35 \
+  -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
+  -drive if=pflash,format=raw,file="$WORK/ovmf-vars.fd" \
   -drive file="$RAW",format=raw,if=virtio \
   -nic user,model=virtio-net-pci,hostfwd=tcp::2222-:22 \
   -display none -serial pipe:"$WORK/serial" -daemonize -pidfile "$WORK/qemu.pid"
 
 # The raw image boots recovery, resets onto the disk, then reboots to active.
 if out=$(wait_boot active_boot 1500); then
-  record os "first boot" pass "$(vm 'cat /usr/lib/hakopod-os/flavor; uname -r' | tr '\n' ' ')"
+  record os "first boot" pass "$(vm 'cat /usr/lib/hakopod-os/flavor; uname -r; [ -d /sys/firmware/efi ] && echo efi || echo bios; printf "kernel %s initrd %s" $(stat -Lc %s /boot/vmlinuz | numfmt --to=iec) $(stat -Lc %s /boot/initrd | numfmt --to=iec)' | tr '\n' ' ')"
 else
   record os "first boot" fail "$out"; exit 1
 fi
