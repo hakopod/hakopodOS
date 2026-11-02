@@ -11,6 +11,14 @@ on:
         description: Hakopod release installed inside the VM
         type: string
         default: 0.1.0-alpha.75
+      flavors:
+        description: Flavors to run
+        type: string
+        default: '["metal", "cloud", "aws", "azure"]'
+      profile_only:
+        description: Stop after the idle memory profile of the bare OS
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -22,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flavor: [metal, cloud, aws, azure]
+        flavor: ${{ fromJSON(inputs.flavors || '["metal", "cloud", "aws", "azure"]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -45,6 +53,7 @@ jobs:
         env:
           HAKOPOD_VERSION: ${{ inputs.hakopod_version || '0.1.0-alpha.75' }}
           FLAVOR: ${{ matrix.flavor }}
+          PROFILE_ONLY: ${{ inputs.profile_only && '1' || '' }}
         run: tests/qemu/lifecycle.sh
       - name: Upload logs
         if: always()

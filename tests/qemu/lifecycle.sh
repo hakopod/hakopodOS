@@ -67,6 +67,21 @@ footprint() { # footprint <label>
     echo "$(ls -d /proc/[0-9]* | wc -l) processes"' 2>&1 | tr '\n' ' ')"
 }
 
+# Where idle memory goes: meminfo, per-unit cgroup memory, largest processes,
+# slab caches and tmpfs usage.
+memory_report() { # memory_report <label>
+  vm 'set -x
+    cat /proc/meminfo
+    for u in $(systemctl list-units --type=service --state=running --plain --no-legend | awk "{print \$1}"); do
+      printf "%8d KiB  %s\n" $(( $(systemctl show -p MemoryCurrent --value $u | sed "s/\[not set\]/0/") / 1024 )) $u
+    done | sort -rn | head -30
+    ps -eo rss=,comm= --sort=-rss | head -25
+    sudo awk "NR>2 {printf \"%10d KiB  %s\n\", \$3*\$4/1024, \$1}" /proc/slabinfo | sort -rn | head -15
+    df -h -t tmpfs -t overlay
+    cat /proc/cmdline
+    losetup -l 2>/dev/null' > "$OUT/memory-$1.txt" 2>&1 || true
+}
+
 services() {
   vm 'for u in hakopod-k3s hakopod-api hakopod-dashboard; do printf "%s=%s " $u "$(systemctl is-active $u)"; done' 2>&1 || true
 }
@@ -134,6 +149,11 @@ else
   record os "hardening" fail "sysctl: $sysctls; sshd: ${methods:-no answer}"
 fi
 footprint os
+memory_report os
+if [[ ${PROFILE_ONLY:-} ]]; then
+  kill "$(cat "$WORK/qemu.pid")" 2>/dev/null || true
+  exit 0
+fi
 
 if vm 'mountpoint -q /var/lib && test -f /oem/91_hakopod-layout.yaml'; then
   record os "state layout" pass "$(vm 'findmnt -no SOURCE /var/lib; df -h --output=size /var/lib | tail -1' | tr '\n' ' ')"
