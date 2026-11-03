@@ -35,6 +35,8 @@ A Hakopod installer mode that understands image-based hosts would make the last 
 
 `tests/qemu/lifecycle.sh` runs in CI (`.github/workflows/vm-lifecycle.yml`) for each flavor on a GitHub-hosted runner with KVM. It builds v1 and v2 images, boots v1 from an AuroraBoot raw disk, installs Hakopod, then reboots, upgrades to v2 and rolls back to v1 through the fallback entry. OS checks gate the job; Hakopod health and boot timings are reported in the job summary.
 
+`tests/qemu/artifacts.sh` runs in the release workflow and boots every artifact before anything is published. The artifacts carry no users or keys, so the test user comes from a NoCloud seed (a CD labelled `cidata`) that the Kairos cdrom datasource reads the same way it reads EC2 or Azure user data. The ISO installs itself onto an empty disk and boots from it; the raw, qcow2 and VHD images boot recovery and reset onto the disk. Each one has to reach the active slot with the expected version and flavor.
+
 ## Measurements
 
 QEMU/KVM with OVMF (UEFI) on a GitHub-hosted `ubuntu-24.04` runner, 4 vCPUs, 8 GiB RAM, kairos-init v4.4.0, Hakopod 0.1.0-alpha.76, 3 November 2026. Ranges cover two CI runs on different runners; these are not benchmarks.
@@ -63,12 +65,10 @@ Three changes brought a reboot with Hakopod running down from 67 to 71 s to SSH 
 
 | Artifact | `cloud` | `metal` |
 | --- | --- | --- |
-| installer ISO | 307 MB | 455 MB |
-| qcow2 | 265 MB | |
-| EFI raw disk, zstd | 210 MB | 324 MB |
-| Azure VHD, zstd | 210 MB | |
-
-Artifact sizes were measured before the move to kairos-init v4.4.0, which made the OS image about 40 MB larger.
+| installer ISO | 289 MiB | 438 MiB |
+| qcow2 | 248 MiB | |
+| EFI raw disk, zstd | 193 MiB | 308 MiB |
+| Azure VHD, zstd | 193 MiB | |
 
 ## Hardening
 
