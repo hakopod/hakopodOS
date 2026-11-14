@@ -19,10 +19,15 @@ on:
         description: Stop after the idle memory profile of the bare OS
         type: boolean
         default: false
+  workflow_call:
+    inputs:
+      hakopod_version:
+        type: string
+        required: true
 permissions:
   contents: read
 concurrency:
-  group: vm-lifecycle-${{ github.ref }}
+  group: vm-lifecycle-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   qemu:
